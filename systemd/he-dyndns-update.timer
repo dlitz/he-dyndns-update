@@ -1,0 +1,9 @@
+[Unit]
+Description=Periodically update he.net dynamic DNS
+
+[Timer]
+OnCalendar=hourly
+RandomizedDelaySec=30min
+
+[Install]
+WantedBy=timers.target

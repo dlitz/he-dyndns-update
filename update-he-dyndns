@@ -1,0 +1,426 @@
+#!/usr/bin/env python3
+# dlitz 2025
+import argparse
+import enum
+import subprocess
+import sys
+import time
+from concurrent.futures import ProcessPoolExecutor, as_completed
+from dataclasses import dataclass
+from ipaddress import IPv4Address, IPv6Address, ip_address
+from pathlib import Path, PurePath
+from typing import Self
+from urllib.parse import urlencode
+
+import yaml
+
+DEFAULT_CONFIG_DIRECTORY = "/etc/he-dyndns-update.d"
+DEFAULT_API_URL = "https://dyn.dns.he.net/nic/update"
+
+
+class PathArg:
+    def __new__(cls, *args):
+        obj = PurePath(*args)
+        if str(obj) == "-":
+            return StdioPathArg(*args)
+        else:
+            return Path(*args)
+
+
+class StdioPathArg(PurePath):
+    def open(self, mode="r", *args, **kw):
+        return open_arg(self, mode, *args, **kw)
+
+    def read_bytes(self):
+        with open(sys.stdin.fileno(), "rb", closefd=False) as infile:
+            return infile.read()
+
+    def read_text(self):
+        with open(sys.stdin.fileno(), "r", closefd=False) as infile:
+            return infile.read()
+
+    def write_bytes(self, data):
+        with open(sys.stdout.fileno(), "wb", closefd=False) as outfile:
+            outfile.write(data)
+
+    def write_text(self, data, encoding=None, errors=None, newline=None):
+        with open(
+            sys.stdout.fileno(),
+            "w",
+            closefd=False,
+            encoding=encoding,
+            errors=errors,
+            newline=newline,
+        ) as outfile:
+            outfile.write(data)
+
+
+def open_arg(path, mode="r", *args, **kw):
+    if str(path) == "-":
+        if "r" in mode:
+            return open(sys.stdin.fileno(), mode, *args, closefd=False, **kw)
+        else:
+            return open(sys.stdout.fileno(), mode, *args, closefd=False, **kw)
+    return open(path, mode, *args, **kw)
+
+
+class Password(str):
+    def __repr__(self):
+        clsname = type(self).__name__
+        return f"<{clsname} *****>"
+
+
+class ResultText(str):
+    @property
+    def status(self):
+        return self.args[0]
+
+    @property
+    def address(self):
+        if self.status in ("nochg", "good"):
+            return ip_address(self.args[1])
+        raise TypeError(f"no address in {self!r}")
+
+    @property
+    def args(self):
+        return self.lines[0].split(" ")
+
+    @property
+    def lines(self):
+        return self.split("\n")
+
+    def __repr__(self):
+        clsname = type(self).__name__
+        return f"{clsname}({str(self)!r})"
+
+
+class IPVersionEnum(enum.IntEnum):
+    V4_ONLY = 4
+    V6_ONLY = 6
+
+
+@dataclass
+class UpdateConfig:
+    hostname: str
+    password: Password | None = None
+    myip: IPv4Address | IPv6Address | None = None
+    ip_version: IPVersionEnum | None = None
+    interface: str | None = None
+    api_url: str = DEFAULT_API_URL
+    delay: int | float = 0
+    connect_timeout: int | float | None = None
+    max_time: int | float | None = 120
+    retry_count: int = 30
+    retry_delay: int | float | None = None
+    retry_max_time: int | float | None = 1800
+
+    @classmethod
+    def iter_from_dict(cls, d) -> list[Self]:
+        d = dict(d)
+        args = {}
+        # ip_version must be first
+        if (val := d.pop("ip_version", None)) is not None:
+            match val:
+                case list() if all(isinstance(v, int) for v in val):
+                    results = []
+                    for ver in val:
+                        results += list(cls.iter_from_dict(dict(d, ip_version=ver)))
+                    return results
+                case "all":
+                    return cls.iter_from_dict(dict(d, ip_version=[4, 6]))
+                case "any":
+                    args["ip_version"] = None
+                case IPVersionEnum():
+                    args["ip_version"] = val
+                case 4 | 6:
+                    args["ip_version"] = IPVersionEnum(val)
+                case _:
+                    raise TypeError(f"invalid ip_version: {val!r}")
+        if (val := d.pop("hostname", None)) is not None:
+            assert isinstance(val, str), "hostname"
+            args["hostname"] = val
+        if (val := d.pop("password", None)) is not None:
+            assert isinstance(val, str), "password"
+            args["password"] = Password(val)
+        if (val := d.pop("myip", None)) is not None:
+            match val:
+                case IPv4Address() | IPv6Address():
+                    args["myip"] = val
+                case str():
+                    args["myip"] = ip_address(val)
+                case _:
+                    raise TypeError("myip has invalid type")
+        if (val := d.pop("interface", None)) is not None:
+            assert isinstance(val, str), "interface"
+            args["interface"] = val
+        if (val := d.pop("api_url", None)) is not None:
+            assert isinstance(val, str), "api_url"
+            args["api_url"] = val
+        for k in (
+            "delay",
+            "connect_timeout",
+            "max_time",
+            "retry_delay",
+            "retry_max_time",
+        ):
+            if (val := d.pop(k, None)) is not None:
+                match val:
+                    case float() | int():
+                        args[k] = val
+                    case str():
+                        try:
+                            args[k] = int(val)
+                        except ValueError:
+                            args[k] = float(val)
+                    case _:
+                        raise TypeError(f"{k} has invalid type")
+        for k in ("retry_count",):
+            if (val := d.pop(k, None)) is not None:
+                match val:
+                    case int():
+                        args[k] = val
+                    case str():
+                        args[k] = int(val)
+                    case _:
+                        raise TypeError(f"{k} has invalid type")
+        if d:
+            raise ValueError(f"extra args: {list(d)}")
+        return [cls(**args)]
+
+    def get_pretty_name(self):
+        match self.ip_version:
+            case IPVersionEnum.V4_ONLY:
+                return f"{self.hostname}(IPv4)"
+            case IPVersionEnum.V6_ONLY:
+                return f"{self.hostname}(IPv6)"
+            case _:
+                return self.hostname
+
+
+@dataclass
+class Config:
+    updates: list[UpdateConfig]
+
+    @classmethod
+    def from_yaml(cls, yaml_text: str) -> Self:
+        config_dict = yaml.safe_load(yaml_text)
+        if config_dict is None:
+            config_dict = {}
+        return cls.from_dict(config_dict)
+
+    @classmethod
+    def from_dict(cls, config_dict: dict) -> Self:
+        cfg_defaults = config_dict.get("defaults") or {}
+        assert isinstance(cfg_defaults, dict)
+        cfg_updates = config_dict.get("updates") or []
+        assert isinstance(cfg_updates, list)
+        updates = []
+        for cfg_update in cfg_updates:
+            d = dict(cfg_defaults)
+            d.update(cfg_update)
+            updates += list(UpdateConfig.iter_from_dict(d))
+        return cls(updates=updates)
+
+
+@dataclass
+class SuccessResult:
+    result: ResultText
+    config: UpdateConfig
+
+    @property
+    def address(self):
+        return self.result.args[1]
+
+
+class GoodResult(SuccessResult):
+    pass
+
+
+class NoChgResult(SuccessResult):
+    pass
+
+
+class ResultError(Exception):
+    def __init__(self, result: ResultText, config: UpdateConfig, *args, **kw):
+        self.result = result
+        self.config = config
+        super().__init__(result, config, *args, **kw)
+
+    @property
+    def status(self):
+        return self.result.status
+
+
+class IntervalError(ResultError):
+    pass
+
+
+class UnsupportedResultError(ResultError):
+    pass
+
+
+class Updater:
+    curl_cmd = "curl"
+
+    def __init__(self, config: UpdateConfig, verbose=False, ignore_delay=False):
+        self.verbose = verbose
+        self.ignore_delay = ignore_delay
+        self.config = config
+        self.post_data = self.generate_post_data_urlencoded(config)
+        self.curl_args = self.generate_curl_args(config)
+
+    def generate_post_data_urlencoded(self, config):
+        post_dict = {
+            "hostname": config.hostname,
+            "password": config.password,
+        }
+        if config.myip is not None:
+            post_dict["myip"] = str(config.myip)
+        return urlencode(post_dict)
+
+    def generate_curl_args(self, config):
+        args = [
+            "--silent",
+            "--show-error",
+            "--fail",
+        ]
+        if config.interface:
+            args += [
+                "--interface",
+                config.interface,
+            ]
+        match config.ip_version:
+            case IPVersionEnum.V4_ONLY:
+                args += ["--ipv4"]
+            case IPVersionEnum.V6_ONLY:
+                args += ["--ipv6"]
+        if config.connect_timeout is not None:
+            args += ["--connect-timeout", str(config.connect_timeout)]
+        if config.max_time is not None:
+            args += ["--max-time", str(config.max_time)]
+        if config.retry_count:
+            assert config.retry_count >= 0
+            args += ["--retry-connrefused", "--retry", str(config.retry_count)]
+            if config.retry_delay is not None:
+                args += ["--retry-delay", str(config.retry_delay)]
+            if config.retry_max_time is not None:
+                args += ["--retry-max-time", str(config.retry_max_time)]
+        args += ["-X", "POST"]
+        args += ["-H", "Content-type: application/x-www-form-urlencoded"]
+        args += ["--data-binary", "@/dev/stdin"]
+        args += [config.api_url]
+        return args
+
+    def run(self):
+        cmd = [self.curl_cmd, *self.curl_args]
+        if not self.ignore_delay and (delay := self.config.delay):
+            if self.verbose:
+                print(
+                    f"{self.config.get_pretty_name()}: delaying {delay} seconds...",
+                    file=sys.stderr,
+                )
+            time.sleep(delay)
+        result = ResultText(
+            subprocess.check_output(cmd, input=self.post_data, text=True)
+        )
+        match result.status:
+            case "good":
+                return GoodResult(result, self.config)
+            case "nochg":
+                return NoChgResult(result, self.config)
+            case "interval":
+                raise IntervalError(result, config=self.config)
+            case _:
+                raise UnsupportedResultError(result, config=self.config)
+
+
+def make_arg_parser():
+    parser = argparse.ArgumentParser(description="Update he.net dynamic DNS")
+    parser.add_argument("-v", "--verbose", action="store_true", help="verbose output")
+    parser.add_argument(
+        "-N",
+        "--no-delay",
+        action="store_true",
+        help="ignore 'delay' configuration",
+    )
+    parser.add_argument(
+        "-d",
+        "--dirs",
+        action="store_true",
+        help="args specify configuration directories rather than files",
+    )
+    parser.add_argument(
+        "path_args",
+        metavar="PATH",
+        type=PathArg,
+        help="YAML configuration file(s), or configuration directories if --dirs is specified",
+        nargs="*",
+    )
+    parser.epilog = f"""
+    If no paths are specified, configuration files are read from the path {DEFAULT_CONFIG_DIRECTORY}
+    """
+    return parser
+
+
+def parse_args():
+    parser = make_arg_parser()
+    args = parser.parse_args()
+    if not args.path_args:
+        args.path_args = [DEFAULT_CONFIG_DIRECTORY]
+        args.dirs = True
+    if args.dirs:
+        new_config_paths = []
+        for dir_path in args.path_args:
+            for p in Path(dir_path).iterdir():  # raises error if inaccessible
+                if p.name.endswith(".yml"):
+                    new_config_paths.append(p)
+        args.config_paths = new_config_paths
+    else:
+        args.config_paths = args.path_args
+    return args, parser
+
+
+def main():
+    prog = sys.argv[0]
+    try:
+        args, parser = parse_args()
+        prog = parser.prog
+        if not args.config_paths:
+            if args.verbose:
+                print("Nothing to do.")
+            sys.exit(0)
+        updaters = []
+        for config_path in args.config_paths:
+            if args.verbose:
+                print(f"Reading config file: {config_path}")
+            config = Config.from_yaml(config_path.read_text())
+            for update_config in config.updates:
+                updaters.append(
+                    Updater(
+                        update_config, verbose=args.verbose, ignore_delay=args.no_delay
+                    )
+                )
+    except OSError as exc:
+        print(f"{prog}: error: {exc}", file=sys.stderr)
+        sys.exit(1)
+    with ProcessPoolExecutor() as executor:
+        futures = []
+        for updater in updaters:
+            future = executor.submit(updater.run)
+            future.updater = updater
+            futures.append(future)
+        for future in as_completed(futures):
+            pretty_name = future.updater.config.get_pretty_name()
+            try:
+                result = future.result()
+            except ResultError as exc:
+                print(f"{pretty_name}: error: {exc.result}", file=sys.stderr)
+            except Exception as exc:
+                print(f"{pretty_name}: {exc}", file=sys.stderr)
+            else:
+                if args.verbose:
+                    print(f"{pretty_name}: {result.result}")
+
+
+if __name__ == "__main__":
+    main()

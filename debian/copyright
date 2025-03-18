@@ -1,13 +1,10 @@
 Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
-Source: <url://example.com>
-Upstream-Name: he-dyndns-update
-Upstream-Contact: <preferred name and address to reach the upstream project>
+Source: https://github.com/dlitz/he-dyndns-update
 
 Files:
  *
 Copyright:
- <years> <put author's name and email here>
- <years> <likewise for another author>
+ 2022-2025 Darsey Litzenberger <dlitz@dlitz.net>
 License: Expat
 
 Files:

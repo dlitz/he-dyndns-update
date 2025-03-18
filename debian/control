@@ -1,18 +1,28 @@
 Source: he-dyndns-update
-Section: unknown
+Section: net
 Priority: optional
 Maintainer: Darsey Litzenberger <dlitz@dlitz.net>
 Rules-Requires-Root: no
 Build-Depends:
  debhelper-compat (= 13),
-Standards-Version: 4.7.1
-Homepage: <insert the upstream URL, if relevant>
-#Vcs-Browser: https://salsa.debian.org/debian/he-dyndns-update
-#Vcs-Git: https://salsa.debian.org/debian/he-dyndns-update.git
+ python3-argparse-manpage (>= 4.5),
+Standards-Version: 4.7.0
+Vcs-Browser: https://github.com/dlitz/he-dyndns-update
+Vcs-Git: https://github.com/dlitz/he-dyndns-update.git
 
 Package: he-dyndns-update
 Architecture: all
 Depends:
+ curl (>= 7.84.0),
+ python3 (>= 3.11),
+ python3-yaml (>= 6),
  ${misc:Depends},
-Description: <insert up to 60 chars description>
- <Insert long description, indented with spaces.>
+Recommends:
+ networkd-dispatcher (>= 2.1),
+ ca-certificates,
+Description: Unofficial dynamic DNS updater for dns.he.net
+ This installs a script that uses networkd-dispatcher to update Hurricane
+ Electric's dynamic DNS API.  It also installs a timer that does the same.
+ .
+ For information about the API:
+    https://dns.he.net/docs.htmlhttps://dyn.dns.he.net/nic/update

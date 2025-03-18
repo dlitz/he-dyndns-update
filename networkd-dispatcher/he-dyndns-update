@@ -1,0 +1,2 @@
+#!/bin/sh
+exec systemctl start --no-block he-dyndns-update.service

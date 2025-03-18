@@ -1,0 +1,4 @@
+updates:
+- hostname: "dyn.example.net"
+  password: "secret"
+  ip_version: all

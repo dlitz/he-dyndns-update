@@ -1,0 +1,10 @@
+[Unit]
+Description=Update he.net dynamic DNS
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/update-he-dyndns
+
+[Install]
+WantedBy=multi-user.target

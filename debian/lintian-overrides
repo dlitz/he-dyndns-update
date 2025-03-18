@@ -1,0 +1,2 @@
+he-dyndns-update: non-standard-dir-perm 0750 != 0755 [etc/he-dyndns-update.d/]
+he-dyndns-update: non-standard-file-perm 0640 != 0644 [etc/he-dyndns-update.d/default.yml]

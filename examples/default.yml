@@ -1,0 +1,70 @@
+# /etc/he-dyndns-update.d/default.yml
+
+## defaults: dict specifying defaults for all items
+defaults:
+  ## hostname: host name to update
+  ##    default: unspecified
+  #hostname: "dynamic.example.net"
+
+  ## password: api key used to update this entry
+  ##    default: null
+  #password: "secret"
+
+  ## delay: wait this many seconds before connecting
+  ##    default: 0
+  #delay: 0
+
+  ## ip_version: which IP version(s) to use when connecting
+  ##    allowed values: "any", "all", 4, 6, list containing 4 and/or 6
+  #ip_version: any
+
+  ## myip: explicit IP address
+  ##    default: null
+  #myip: "127.0.0.1"
+  #myip: "::1"
+
+  ## interface: bind to this interface when connecting
+  ##    default: null
+  #interface: eth0
+
+  ## api_url: post to this URL
+  ##    default: https://dyn.dns.he.net/nic/update
+  #api_url: "https://dyn.dns.he.net/nic/update"
+
+  ## connect_timeout: how long to wait for the connection phase to complete
+  ##    default: null
+  #connect_timeout: null
+
+  ## max_time: maximum time that each transfer is allowed to take; null to disable
+  ##    default: 120
+  #max_time: 120
+
+  ## retry_max_time: maximum time for all transfers, if retrying
+  ##    default: 1800
+  #retry_max_time: 1800
+
+  ## retry: whether to perform retries. Set to 0 to disable retries
+  ##    default: 30
+  #retry_count: 30
+
+  ## retry_delay: specify a fixed amount to time between retries (default is to
+  ##              use exponential backoff)
+  ##    default: null
+  #retry_delay: null
+
+  ## retry_count: maximum time for all transfers, if retrying
+  ##    default: 1800
+  #retry_max_time: 1800
+
+## updates: list of dicts specifying what updates to perform.
+##          Unspecified parameters will default to the values in 'defaults' above.
+updates:
+#- hostname: "dynamic.example.net"
+#  ip_version: all
+#- hostname: "v4.dynamic.example.net"
+#  ip_version: 4
+#- hostname: "v6.dynamic.example.net"
+#  ip_version: 6
+#- hostname: "localhost.dynamic.example.net"
+#  password: "anothersecret"
+#  myip: "127.0.0.1"
