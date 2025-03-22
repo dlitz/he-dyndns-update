@@ -26,4 +26,5 @@ Description: Unofficial dynamic DNS updater for dns.he.net
  Electric's dynamic DNS API.  It also installs a timer that does the same.
  .
  For information about the API:
-    https://dns.he.net/docs.htmlhttps://dyn.dns.he.net/nic/update
+    https://dns.he.net/docs.html
+    https://dyn.dns.he.net/nic/update
