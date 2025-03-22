@@ -1,5 +1,5 @@
-he-dyndns-update (0.0.0) UNRELEASED; urgency=medium
+he-dyndns-update (0.0.1) dlitz-aptly; urgency=medium
 
   * Initial release.
 
- -- Darsey Litzenberger <dlitz@dlitz.net>  Mon, 17 Mar 2025 18:14:32 -0600
+ -- Darsey Litzenberger <dlitz@dlitz.net>  Fri, 21 Mar 2025 19:45:51 -0600
