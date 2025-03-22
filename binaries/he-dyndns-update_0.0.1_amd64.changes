@@ -1,0 +1,43 @@
+-----BEGIN PGP SIGNED MESSAGE-----
+Hash: SHA512
+
+Format: 1.8
+Date: Fri, 21 Mar 2025 19:48:46 MDT
+Source: he-dyndns-update
+Binary: he-dyndns-update
+Architecture: source all
+Version: 0.0.1
+Distribution: dlitz-aptly
+Urgency: medium
+Maintainer: Darsey Litzenberger <dlitz@dlitz.net>
+Changed-By: Darsey Litzenberger <dlitz@dlitz.net>
+Description:
+ he-dyndns-update - Unofficial dynamic DNS updater for dns.he.net
+Checksums-Sha1:
+ 9c6636ac190091abe5768759317d719bbd5ed1a8 1033 he-dyndns-update_0.0.1.dsc
+ 6319433fcb7e6e4dba3e39a36cad43c73b99e250 6336 he-dyndns-update_0.0.1.tar.xz
+ e605197f1de915934456b49905b1fecb9070ea0f 7468 he-dyndns-update_0.0.1_all.deb
+ 41cfa744cdc8812c5f4a63d1914cfdfefb0cd4cb 5960 he-dyndns-update_0.0.1_amd64.buildinfo
+Checksums-Sha256:
+ f5cd04bd80aff05d56cfbe56824a0070f4431f8f89adb215ba221b384aded9fc 1033 he-dyndns-update_0.0.1.dsc
+ e9d2045ca6cd7fd96a87ed49834dd74f802822f1ff71928ab20e1b0f2a202e22 6336 he-dyndns-update_0.0.1.tar.xz
+ a10ec58e1eecb53288c8581d24d06503fe4558bcf4f3704381e01a12d35c934d 7468 he-dyndns-update_0.0.1_all.deb
+ 5211d185fe1f5f8084b8aea2f4ceb72998f549d59ecb2b79a9e33386e94a160b 5960 he-dyndns-update_0.0.1_amd64.buildinfo
+Changes:
+ he-dyndns-update (0.0.1) dlitz-aptly; urgency=medium
+ .
+   * Initial release.
+Files:
+ b4160a8340374531c7a18afc2241e1a3 1033 net optional he-dyndns-update_0.0.1.dsc
+ 78c8000b8b8090d73efc2a6748de40b8 6336 net optional he-dyndns-update_0.0.1.tar.xz
+ 1a0603ebc173af80a977d64cea67ca9f 7468 net optional he-dyndns-update_0.0.1_all.deb
+ 65fcefedf2ff9b1b42f02dcf06c0e157 5960 net optional he-dyndns-update_0.0.1_amd64.buildinfo
+
+
+-----BEGIN PGP SIGNATURE-----
+
+iIYEARYKAC4WIQTWkd0xNWtIORg6n8DjQLK2WJpUpAUCZ94XBxAcZGxpdHpAZGxp
+dHoubmV0AAoJEONAsrZYmlSkOXwA/Rcb6bfc6VEx5hdvygVZE2W/NaPYK3TtzGt+
+gdUCoWhsAP0TLpIsj560eaNIzjH+jFNK2yGmpuR/HUyqVGCMdahGAA==
+=DFi/
+-----END PGP SIGNATURE-----
